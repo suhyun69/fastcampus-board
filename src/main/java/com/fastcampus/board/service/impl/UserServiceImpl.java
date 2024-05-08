@@ -2,7 +2,7 @@ package com.fastcampus.board.service.impl;
 
 import com.fastcampus.board.dto.UserDTO;
 import com.fastcampus.board.exception.DuplicateIdException;
-import com.fastcampus.board.mapper.UserProfileMapper;
+import com.fastcampus.board.repository.UserRepository;
 import com.fastcampus.board.service.UserService;
 import com.fastcampus.board.util.SHA256Util;
 import lombok.extern.log4j.Log4j2;
@@ -10,16 +10,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.Optional;
 
 @Service
 @Log4j2
 public class UserServiceImpl implements UserService {
 
     @Autowired
-    private UserProfileMapper userProfileMapper;
+    private UserRepository userRepository;
 
-    public UserServiceImpl(UserProfileMapper userProfileMapper) {
-        this.userProfileMapper = userProfileMapper;
+    public UserServiceImpl(UserRepository userRepository) {
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -31,9 +32,11 @@ public class UserServiceImpl implements UserService {
 
         userProfile.setCreateTime(new Date());
         userProfile.setPassword(SHA256Util.encryptSHA256(userProfile.getPassword()));
-        int insertCount = userProfileMapper.register(userProfile);
 
-        if (insertCount != 1) {
+        try {
+            userRepository.save(userProfile);
+        }
+        catch (Exception ex) {
             log.error("insertMember ERROR! {}", userProfile);
             throw new RuntimeException(
                     "insertUser ERROR! 회원가입 메서드를 확인해주세요\n" + "Params : " + userProfile);
@@ -43,18 +46,18 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserDTO login(String id, String password) {
         String cryptoPassword = SHA256Util.encryptSHA256(password);
-        UserDTO memberInfo = userProfileMapper.findByUserIdAndPassword(id, cryptoPassword);
-        return memberInfo;
+        Optional<UserDTO> memberInfo = userRepository.findUserDtoByUserIdAndPassword(id, cryptoPassword);
+        return memberInfo.get();
     }
 
     @Override
     public boolean isDuplicatedId(String id) {
-        return userProfileMapper.idCheck(id) == 1;
+        return userRepository.existsUserDTOByUserId(id);
     }
 
     @Override
     public UserDTO getUserInfo(String userId) {
-        return userProfileMapper.getUserProfile(userId);
+        return userRepository.findUserDtoByUserId(userId).get();
     }
 
     @Override
@@ -62,11 +65,11 @@ public class UserServiceImpl implements UserService {
                                String beforePassword,
                                String afterPassword) {
         String cryptoPassword = SHA256Util.encryptSHA256(beforePassword);
-        UserDTO memberInfo = userProfileMapper.findByIdAndPassword(id, cryptoPassword);
+        Optional<UserDTO> memberInfo = userRepository.findUserDtoByUserIdAndPassword(id, cryptoPassword);
 
         if (memberInfo != null) {
-            memberInfo.setPassword(SHA256Util.encryptSHA256(afterPassword));
-            int insertCount = userProfileMapper.updatePassword(memberInfo);
+            memberInfo.get().setPassword(SHA256Util.encryptSHA256(afterPassword));
+            userRepository.save(memberInfo.get());
         } else {
             log.error("updatePasswrod ERROR! {}", memberInfo);
             throw new IllegalArgumentException("updatePasswrod ERROR! 비밀번호 변경 메서드를 확인해주세요\n" + "Params : " + memberInfo);
@@ -76,10 +79,10 @@ public class UserServiceImpl implements UserService {
     @Override
     public void deleteId(String id, String password) {
         String cryptoPassword = SHA256Util.encryptSHA256(password);
-        UserDTO memberInfo = userProfileMapper.findByIdAndPassword(id, cryptoPassword);
+        Optional<UserDTO> memberInfo = userRepository.findUserDtoByUserIdAndPassword(id, cryptoPassword);
 
         if (memberInfo != null) {
-            userProfileMapper.deleteUserProfile(memberInfo.getUserId());
+            userRepository.delete(memberInfo.get());
         } else {
             log.error("deleteId ERROR! {}", memberInfo);
             throw new RuntimeException("deleteId ERROR! id 삭제 메서드를 확인해주세요\n" + "Params : " + memberInfo);

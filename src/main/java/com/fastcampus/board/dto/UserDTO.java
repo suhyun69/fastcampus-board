@@ -1,11 +1,13 @@
 package com.fastcampus.board.dto;
 
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
 import java.util.Date;
 
+@Entity
 @Getter
 @Setter
 @ToString
@@ -13,7 +15,11 @@ public class UserDTO {
     public enum Status {
         DEFAULT, ADMIN, DELETED
     }
-    private Integer id;
+
+    @Id
+    @Column(name = "USER_NO")
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Integer no;
     private String userId;
     private String password;
     private String nickname;
